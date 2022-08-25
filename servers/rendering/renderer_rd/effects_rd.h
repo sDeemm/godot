@@ -91,12 +91,18 @@ private:
 		LUMINANCE_REDUCE_MAX
 	};
 
+	enum LuminanceReduceDebugConstants
+	{
+		LUMINANCE_REDUCE_DEBUG_CONSTANTS_NUM_ROWS = 1024
+	};
+
 	struct LuminanceReducePushConstant {
 		int32_t source_size[2];
 		float max_luminance;
 		float min_luminance;
 		float exposure_adjust;
-		float pad[3];
+		int32_t debug_idx;
+		float pad[2];
 	};
 
 	struct LuminanceReduce {
@@ -105,6 +111,11 @@ private:
 		RID shader_version;
 		RID pipelines[LUMINANCE_REDUCE_MAX];
 	} luminance_reduce;
+
+	struct LuminanceReduceDebug {
+		RID debug_image;
+		RID debug_image_uniform_set;
+	} luminance_reduce_debug;
 
 	enum LuminanceReduceRasterMode {
 		LUMINANCE_REDUCE_FRAGMENT_FIRST,

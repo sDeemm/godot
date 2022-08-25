@@ -31,6 +31,7 @@
 #include "effects_rd.h"
 
 #include "core/config/project_settings.h"
+#include "core/error/error_macros.h"
 #include "core/math/math_defs.h"
 #include "core/os/os.h"
 
@@ -226,6 +227,10 @@ void EffectsRD::luminance_reduction(RID p_source_texture, const Size2i p_source_
 	luminance_reduce.push_constant.min_luminance = p_min_luminance;
 	luminance_reduce.push_constant.exposure_adjust = p_adjust;
 
+	static int s_counter = 0;
+	luminance_reduce.push_constant.debug_idx = s_counter;
+	s_counter = (s_counter + 1) % LUMINANCE_REDUCE_DEBUG_CONSTANTS_NUM_ROWS;
+
 	RD::ComputeListID compute_list = RD::get_singleton()->compute_list_begin();
 
 	for (int i = 0; i < p_reduce.size(); i++) {
@@ -238,6 +243,21 @@ void EffectsRD::luminance_reduction(RID p_source_texture, const Size2i p_source_
 			if (i == p_reduce.size() - 1 && !p_set) {
 				RD::get_singleton()->compute_list_bind_compute_pipeline(compute_list, luminance_reduce.pipelines[LUMINANCE_REDUCE_WRITE]);
 				RD::get_singleton()->compute_list_bind_uniform_set(compute_list, _get_compute_uniform_set_from_texture(p_prev_luminance), 2);
+
+				RID& debug_set = luminance_reduce_debug.debug_image_uniform_set;
+				if (debug_set.is_null() || RD::get_singleton()->uniform_set_is_valid(debug_set))
+				{
+					Vector<RD::Uniform> uniforms;
+					RD::Uniform u;
+					u.uniform_type = RD::UNIFORM_TYPE_IMAGE;
+					u.binding = 0;
+					u.append_id(luminance_reduce_debug.debug_image);
+					uniforms.push_back(u);
+					debug_set = RD::get_singleton()->uniform_set_create(uniforms, luminance_reduce.shader.version_get_shader(luminance_reduce.shader_version, LUMINANCE_REDUCE_WRITE), 3);
+				}
+
+				RD::get_singleton()->compute_list_bind_uniform_set(compute_list, luminance_reduce_debug.debug_image_uniform_set, 3);
+
 			} else {
 				RD::get_singleton()->compute_list_bind_compute_pipeline(compute_list, luminance_reduce.pipelines[LUMINANCE_REDUCE]);
 			}
@@ -431,6 +451,27 @@ EffectsRD::EffectsRD(bool p_prefer_raster_effects) {
 		for (int i = 0; i < LUMINANCE_REDUCE_FRAGMENT_MAX; i++) {
 			luminance_reduce_raster.pipelines[i].clear();
 		}
+
+		RD::TextureFormat tf;
+		tf.format = RD::DATA_FORMAT_R32_SFLOAT;
+		tf.width = 3;
+		tf.height = 1024;
+		tf.usage_bits = RD::TEXTURE_USAGE_STORAGE_BIT | RD::TEXTURE_USAGE_CAN_UPDATE_BIT;
+
+		Vector<Vector<uint8_t>> data;
+		Vector<uint8_t> v;
+		v.resize(3 * 1024 * sizeof(float));
+
+		for (int i = 0; i < 3 * 1024; i++)
+		{
+			v.set(i * 4 + 0, 0);
+			v.set(i * 4 + 1, 0);
+			v.set(i * 4 + 2, 0);
+			v.set(i * 4 + 3, 0);
+		}
+		data.push_back(v);
+
+		luminance_reduce_debug.debug_image = RD::get_singleton()->texture_create(tf, RD::TextureView(), data);
 	}
 
 	if (!prefer_raster_effects) {
@@ -535,4 +576,9 @@ EffectsRD::~EffectsRD() {
 		sss.shader.version_free(sss.shader_version);
 	}
 	sort.shader.version_free(sort.shader_version);
+
+	if (luminance_reduce_debug.debug_image.is_valid())
+	{
+		RD::get_singleton()->free(luminance_reduce_debug.debug_image);
+	}
 }

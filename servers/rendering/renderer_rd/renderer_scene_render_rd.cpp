@@ -38,6 +38,9 @@
 #include "servers/rendering/renderer_rd/storage_rd/texture_storage.h"
 #include "servers/rendering/rendering_server_default.h"
 
+#include <cstdio>
+#include <iostream>
+
 void get_vogel_disk(float *r_kernel, int p_sample_count) {
 	const float golden_angle = 2.4;
 
@@ -1926,12 +1929,23 @@ void RendererSceneRenderRD::_render_buffers_post_process_and_tonemap(const Rende
 			_allocate_luminance_textures(rb);
 		}
 
+		char buf[1024], *pMsg = buf;
+
 		bool set_immediate = environment_get_auto_exposure_version(p_render_data->environment) != rb->auto_exposure_version;
 		rb->auto_exposure_version = environment_get_auto_exposure_version(p_render_data->environment);
 
 		double step = environment_get_auto_exp_speed(p_render_data->environment) * time_step;
 		if (can_use_storage) {
-			RendererCompositorRD::singleton->get_effects()->luminance_reduction(rb->internal_texture, Size2i(rb->internal_width, rb->internal_height), rb->luminance.reduce, rb->luminance.current, environment_get_min_luminance(p_render_data->environment), environment_get_max_luminance(p_render_data->environment), step, set_immediate);
+			RendererCompositorRD::singleton->get_effects()->luminance_reduction(
+					 rb->internal_texture,
+					Size2i(rb->internal_width,
+					rb->internal_height),
+					rb->luminance.reduce,
+					rb->luminance.current,
+					environment_get_min_luminance(p_render_data->environment),
+					environment_get_max_luminance(p_render_data->environment),
+					step,
+					set_immediate);
 		} else {
 			RendererCompositorRD::singleton->get_effects()->luminance_reduction_raster(rb->internal_texture, Size2i(rb->internal_width, rb->internal_height), rb->luminance.reduce, rb->luminance.fb, rb->luminance.current, environment_get_min_luminance(p_render_data->environment), environment_get_max_luminance(p_render_data->environment), step, set_immediate);
 		}
@@ -1940,6 +1954,15 @@ void RendererSceneRenderRD::_render_buffers_post_process_and_tonemap(const Rende
 		if (!can_use_storage) {
 			SWAP(rb->luminance.current_fb, rb->luminance.fb.write[rb->luminance.fb.size() - 1]);
 		}
+
+		pMsg += std::sprintf(pMsg, "test0,");
+		pMsg += std::sprintf(pMsg, " %d, %d," , rb->internal_width, rb->internal_height);
+		pMsg += std::sprintf(pMsg, " %f, %f," , environment_get_min_luminance(p_render_data->environment), environment_get_max_luminance(p_render_data->environment));
+		pMsg += std::sprintf(pMsg, " %f, %f," , time_step, step);
+		pMsg += std::sprintf(pMsg, " %s\n"    , set_immediate ? "true" : "false");
+
+		std::cout << buf;
+		std::cout.flush();
 
 		RenderingServerDefault::redraw_request(); // Redraw all the time if auto exposure rendering is on.
 		RD::get_singleton()->draw_command_end_label();

@@ -26,6 +26,10 @@ layout(r32f, set = 1, binding = 0) uniform restrict writeonly image2D dest_lumin
 
 #ifdef WRITE_LUMINANCE
 layout(set = 2, binding = 0) uniform sampler2D prev_luminance;
+
+// DEBUG
+layout(r32f, set = 3, binding = 0) uniform restrict writeonly image2D debug_image;
+
 #endif
 
 layout(push_constant, std430) uniform Params {
@@ -33,7 +37,8 @@ layout(push_constant, std430) uniform Params {
 	float max_luminance;
 	float min_luminance;
 	float exposure_adjust;
-	float pad[3];
+	int   debug_idx;
+	float pad[2];
 }
 params;
 
@@ -76,6 +81,11 @@ void main() {
 #ifdef WRITE_LUMINANCE
 		float prev_lum = texelFetch(prev_luminance, ivec2(0, 0), 0).r; //1 pixel previous exposure
 		avg = clamp(prev_lum + (avg - prev_lum) * params.exposure_adjust, params.min_luminance, params.max_luminance);
+
+		//DEBUG
+		imageStore(debug_image, ivec2(params.debug_idx, 0), vec4(-1.0f));
+		imageStore(debug_image, ivec2(params.debug_idx, 1), vec4(-1.0f));
+		imageStore(debug_image, ivec2(params.debug_idx, 2), vec4(-1.0f));
 #endif
 		imageStore(dest_luminance, pos, vec4(avg));
 	}
